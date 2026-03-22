@@ -390,7 +390,7 @@ class InscripcionCronService {
         if (usuario.telefono_personal) {
           try {
             if (TWILIO_TEMPLATE_PAGO_PARCIAL_SID) {
-              const variables = { "1": usuario.nombres };
+              const variables = { 1: usuario.nombres };
               await twilioProvider.sendTemplateMessage(
                 usuario.telefono_personal,
                 TWILIO_TEMPLATE_PAGO_PARCIAL_SID,
