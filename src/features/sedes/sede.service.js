@@ -56,7 +56,6 @@ const SEDE_SELECT_FIELDS = {
 
 /**
  * Construye el objeto `where` para filtrar sedes.
- * Reutilizado por getAllSedes y getCanchaForSedeCount.
  */
 const buildWhereFilters = ({ activo, distrito, tipo_instalacion }) => {
   const where = {};
@@ -130,7 +129,7 @@ export const sedeService = {
     const page = Number(filters.page) || 1;
     const limit = Number(filters.limit) || 10;
     const { page: _p, limit: _l, ...rest } = filters;
-    
+
     const where = buildWhereFilters(rest);
     const skip = (page - 1) * limit;
 
@@ -163,7 +162,7 @@ export const sedeService = {
     const page = Number(filters.page) || 1;
     const limit = Number(filters.limit) || 10;
     const { page: _p, limit: _l, ...rest } = filters;
-    
+
     const where = buildWhereFilters(rest);
     const skip = (page - 1) * limit;
 
