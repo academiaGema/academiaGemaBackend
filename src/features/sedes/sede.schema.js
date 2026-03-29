@@ -15,9 +15,17 @@ const direccionSchema = z.object({
   referencia: z.string().trim().max(255).nullable().optional(),
 });
 
-const canchaSchema = z.object({
+const canchaCreateSchema = z.object({
   nombre: z.string().trim().min(1, 'El nombre de la cancha es requerido'),
   descripcion: z.string().trim().max(200).nullable().optional(),
+});
+
+const canchaUpdateSchema = canchaCreateSchema.extend({
+  id: z.coerce
+    .number({ invalid_type_error: 'El id de la cancha debe ser numerico' })
+    .int('El id de la cancha debe ser un entero')
+    .positive('El id de la cancha debe ser mayor a 0')
+    .optional(),
 });
 
 export const sedeSchema = {
@@ -49,7 +57,7 @@ export const sedeSchema = {
 
     direccion: direccionSchema,
 
-    canchas: z.array(canchaSchema).optional().default([]),
+    canchas: z.array(canchaCreateSchema).optional().default([]),
   }),
 
   // ACTUALIZADO: Optimizado para el Service
@@ -66,7 +74,7 @@ export const sedeSchema = {
       administrador_id: z.number().positive().optional(),
       // Usamos .deepPartial() o simplemente dejamos que los campos internos sean opcionales
       direccion: direccionSchema.partial().optional(),
-      canchas: z.array(canchaSchema).optional(),
+      canchas: z.array(canchaUpdateSchema).optional(),
     })
     .refine(
       (data) => Object.keys(data).length > 0,

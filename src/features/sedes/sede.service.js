@@ -229,17 +229,53 @@ export const sedeService = {
 
       // 2. Procesar Canchas en paralelo (Antigravity §3.1)
       if (sedeData.canchas && Array.isArray(sedeData.canchas)) {
-        const canchasExistentes = sedeData.canchas.filter((c) => c.id);
-        const canchasNuevas = sedeData.canchas.filter((c) => !c.id);
+        const canchasExistentes = sedeData.canchas.filter((c) => Number.isInteger(c.id));
+        const canchasNuevas = sedeData.canchas.filter((c) => !Number.isInteger(c.id));
 
-        // BORRAMOS LAS CANCHAS QUE YA NO VIENEN EN EL PAYLOAD
+        // Validamos que los IDs enviados pertenezcan a la sede actual
+        if (canchasExistentes.length > 0) {
+          const idsEnPayload = canchasExistentes.map((c) => c.id);
+          const canchasEncontradas = await tx.canchas.findMany({
+            where: { sede_id: id, id: { in: idsEnPayload } },
+            select: { id: true },
+          });
+
+          if (canchasEncontradas.length !== idsEnPayload.length) {
+            throw new ApiError('Una o mas canchas no pertenecen a la sede seleccionada', 400);
+          }
+        }
+
+        // Borramos solo canchas omitidas del payload si no tienen historial de horarios
         const idsAMantener = canchasExistentes.map((c) => c.id);
-        await tx.canchas.deleteMany({
-          where: {
-            sede_id: id,
-            id: { notIn: idsAMantener },
+        const whereEliminar = {
+          sede_id: id,
+          ...(idsAMantener.length > 0 ? { id: { notIn: idsAMantener } } : {}),
+        };
+
+        const canchasAEliminar = await tx.canchas.findMany({
+          where: whereEliminar,
+          select: {
+            id: true,
+            nombre: true,
+            _count: { select: { horarios_clases: true } },
           },
         });
+
+        const canchasConHorarios = canchasAEliminar.filter((c) => c._count.horarios_clases > 0);
+        if (canchasConHorarios.length > 0) {
+          const nombres = canchasConHorarios.map((c) => `"${c.nombre}"`).join(', ');
+          throw new ApiError(
+            `No se pueden eliminar las canchas ${nombres} porque tienen horarios o inscripciones asociadas`,
+            409,
+            { cancha_ids: canchasConHorarios.map((c) => c.id) }
+          );
+        }
+
+        if (canchasAEliminar.length > 0) {
+          await tx.canchas.deleteMany({
+            where: { id: { in: canchasAEliminar.map((c) => c.id) } },
+          });
+        }
 
         // Updates en paralelo
         if (canchasExistentes.length > 0) {
@@ -255,22 +291,40 @@ export const sedeService = {
 
         // Nuevas: un solo query para verificar duplicados + createMany
         if (canchasNuevas.length > 0) {
-          const nombresNuevos = canchasNuevas.map((c) => c.nombre.toLowerCase());
-          const yaExisten = await tx.canchas.findMany({
-            where: {
-              sede_id: id,
-              nombre: { in: nombresNuevos, mode: 'insensitive' },
-            },
-            select: { nombre: true },
-          });
+          const canchasNuevasUnicas = [];
+          const nombresVistos = new Set();
+
+          for (const cancha of canchasNuevas) {
+            const nombreNormalizado = cancha.nombre.trim().toLowerCase();
+            if (nombresVistos.has(nombreNormalizado)) continue;
+            nombresVistos.add(nombreNormalizado);
+            canchasNuevasUnicas.push({
+              nombre: cancha.nombre.trim(),
+              descripcion: cancha.descripcion || '',
+            });
+          }
+
+          const nombresNuevos = canchasNuevasUnicas.map((c) => c.nombre);
+          const yaExisten =
+            nombresNuevos.length > 0
+              ? await tx.canchas.findMany({
+                  where: {
+                    sede_id: id,
+                    OR: nombresNuevos.map((nombre) => ({
+                      nombre: { equals: nombre, mode: 'insensitive' },
+                    })),
+                  },
+                  select: { nombre: true },
+                })
+              : [];
           const nombresExistentes = new Set(yaExisten.map((c) => c.nombre.toLowerCase()));
-          const realmNuevas = canchasNuevas.filter(
+          const canchasParaCrear = canchasNuevasUnicas.filter(
             (c) => !nombresExistentes.has(c.nombre.toLowerCase())
           );
 
-          if (realmNuevas.length > 0) {
+          if (canchasParaCrear.length > 0) {
             await tx.canchas.createMany({
-              data: realmNuevas.map((c) => ({
+              data: canchasParaCrear.map((c) => ({
                 nombre: c.nombre,
                 descripcion: c.descripcion || '',
                 sede_id: id,
