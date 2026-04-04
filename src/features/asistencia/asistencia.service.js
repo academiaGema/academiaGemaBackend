@@ -111,6 +111,20 @@ export const asistenciaService = {
     return datosAsistencia.length;
   },
 
+  previsualizarfechasFuturas: async (dia_semana) => {
+
+    const DIAS_CICLO = 30;
+
+    const fechaInicioCalculo = new Date();
+
+    const fechaLimite = new Date(fechaInicioCalculo);
+    fechaLimite.setDate(fechaLimite.getDate() + (DIAS_CICLO - 1));
+
+    const fechasClases = calcularProximasFechas(fechaInicioCalculo, dia_semana, fechaLimite);
+
+    return fechasClases;
+  },
+
   // NO SE USA
   // marcarAsistencia: async (asistenciaId, estado, comentario) => {
   //   const asistenciaRegistrada = await prisma.registros_asistencia.update({
@@ -384,21 +398,21 @@ export const asistenciaService = {
         inscripciones: [
           ...horario.inscripciones.map(ins => {
             const reg = ins.registros_asistencia[0];
-            const tipo = reg?.estado === 'REPROGRAMADO' 
-              ? 'REPROGRAMADO' 
-              : reg?.fecha_original 
-                ? 'REPOSICION' 
+            const tipo = reg?.estado === 'REPROGRAMADO'
+              ? 'REPROGRAMADO'
+              : reg?.fecha_original
+                ? 'REPOSICION'
                 : 'REGULAR';
-                
+
             return {
               ...ins,
               tipo_sesion: tipo,
               registros_asistencia: ins.registros_asistencia.map(r => ({
                 ...r,
-                tipo_sesion: r.estado === 'REPROGRAMADO' 
-                  ? 'REPROGRAMADO' 
-                  : r.fecha_original 
-                    ? 'REPOSICION' 
+                tipo_sesion: r.estado === 'REPROGRAMADO'
+                  ? 'REPROGRAMADO'
+                  : r.fecha_original
+                    ? 'REPOSICION'
                     : 'REGULAR'
               }))
             };
